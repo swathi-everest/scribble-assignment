@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Card } from "../components/Card";
+import { DrawingCanvas } from "../components/DrawingCanvas";
 import { GuessForm } from "../components/GuessForm";
 import { ResultPanel } from "../components/ResultPanel";
 import { RoomCodeBadge } from "../components/RoomCodeBadge";
@@ -62,6 +63,8 @@ export function GamePage() {
       ? `${drawer.name} is drawing`
       : "Waiting for drawer";
 
+  const strokes = room.canvas?.strokes ?? [];
+
   return (
     <section className="panel game-page">
       <div className="game-page__header">
@@ -89,12 +92,16 @@ export function GamePage() {
           ) : null}
 
           <Card title="Canvas">
-            <div
-              className="canvas-placeholder"
-              style={{ minHeight: "500px", backgroundColor: "#ffffff", border: "1px solid #e5e7eb" }}
-            >
-              {isDrawer ? "Start drawing when ready..." : "Watch the canvas and submit your guess."}
-            </div>
+            <DrawingCanvas
+              isDrawer={isDrawer}
+              strokes={strokes}
+              onStrokeComplete={async (stroke): Promise<void> => {
+                await roomStore.appendStroke(stroke);
+              }}
+              onClear={async (): Promise<void> => {
+                await roomStore.clearCanvas();
+              }}
+            />
           </Card>
         </div>
 

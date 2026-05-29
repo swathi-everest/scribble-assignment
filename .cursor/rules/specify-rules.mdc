@@ -6,12 +6,13 @@ alwaysApply: true
 For additional context about technologies, project structure, shell commands, and
 implementation guidance, read the active feature plan:
 
-- **Plan**: `specs/002-game-start-drawer/plan.md`
-- **Spec**: `specs/002-game-start-drawer/spec.md`
-- **API contract**: `specs/002-game-start-drawer/contracts/rooms-api.md`
+- **Plan**: `specs/003-gameplay-interaction/plan.md`
+- **Spec**: `specs/003-gameplay-interaction/spec.md`
+- **API contract**: `specs/003-gameplay-interaction/contracts/rooms-api.md`
 
-**Stack (Scenario 2)**: React 18 + TypeScript + **Vite** (frontend); **Node.js** +
+**Stack (Scenario 3)**: React 18 + TypeScript + **Vite** (frontend); **Node.js** +
 **Express** + TypeScript + Zod (backend). Vitest in both packages. HTTP polling ~2s
 (lobby + game); in-memory `roomStore` with viewer-filtered snapshots. No WebSockets,
-DB, or auth. Drawer-only `secretWord`; deterministic word from `STARTER_WORDS`.
+DB, or auth. Drawer-only `secretWord`; canvas strokes + guesses/scores on playing
+snapshots; POST canvas/guess mutations.
 <!-- SPECKIT END -->

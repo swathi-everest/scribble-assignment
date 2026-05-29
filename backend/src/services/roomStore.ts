@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import type { Participant, Room, RoomSnapshot } from "../models/game.js";
+import type { CanvasStroke, GuessRecord, Participant, Room, RoomSnapshot } from "../models/game.js";
 import { STARTER_ROLES, STARTER_WORDS } from "../seed/starterData.js";
 
 const rooms = new Map<string, Room>();
@@ -10,6 +10,23 @@ export class InvalidPlayerNameError extends Error {
   constructor(message = "Player name is required") {
     super(message);
     this.name = "InvalidPlayerNameError";
+  }
+}
+
+export class InvalidGuessError extends Error {
+  constructor(message = "Guess cannot be empty") {
+    super(message);
+    this.name = "InvalidGuessError";
+  }
+}
+
+export class GameplayError extends Error {
+  readonly code: "NOT_FOUND" | "NOT_PLAYING" | "NOT_DRAWER" | "DRAWER_CANNOT_GUESS" | "NOT_PARTICIPANT";
+
+  constructor(code: GameplayError["code"], message: string) {
+    super(message);
+    this.name = "GameplayError";
+    this.code = code;
   }
 }
 
@@ -58,6 +75,28 @@ function createParticipant(name: string): Participant {
 
 function cloneRoom(room: Room) {
   return structuredClone(room);
+}
+
+function getRoomOrThrow(code: string): Room {
+  const room = rooms.get(code.toUpperCase());
+
+  if (!room) {
+    throw new GameplayError("NOT_FOUND", "Unable to load room");
+  }
+
+  return room;
+}
+
+function assertPlaying(room: Room) {
+  if (room.status !== "playing") {
+    throw new GameplayError("NOT_PLAYING", "Game is not in progress");
+  }
+}
+
+function assertDrawer(room: Room, participantId: string) {
+  if (room.drawerParticipantId !== participantId) {
+    throw new GameplayError("NOT_DRAWER", "Only the drawer can draw");
+  }
 }
 
 export function listWords() {
@@ -148,10 +187,84 @@ export function startGame(
   room.status = "playing";
   room.drawerParticipantId = room.hostParticipantId;
   room.secretWord = selectSecretWord(room.code);
+  room.canvasStrokes = [];
+  room.guesses = [];
+  room.scores = Object.fromEntries(room.participants.map((participant) => [participant.id, 0]));
   room.updatedAt = now();
   rooms.set(room.code, room);
 
   return { ok: true, room: cloneRoom(room) };
+}
+
+export function appendStroke(code: string, participantId: string, stroke: CanvasStroke) {
+  const room = getRoomOrThrow(code);
+  assertPlaying(room);
+  assertDrawer(room, participantId);
+
+  room.canvasStrokes = room.canvasStrokes ?? [];
+  room.canvasStrokes.push(stroke);
+  room.updatedAt = now();
+  rooms.set(room.code, room);
+
+  return cloneRoom(room);
+}
+
+export function clearCanvas(code: string, participantId: string) {
+  const room = getRoomOrThrow(code);
+  assertPlaying(room);
+  assertDrawer(room, participantId);
+
+  room.canvasStrokes = [];
+  room.updatedAt = now();
+  rooms.set(room.code, room);
+
+  return cloneRoom(room);
+}
+
+export function submitGuess(code: string, participantId: string, rawText: string) {
+  const room = getRoomOrThrow(code);
+  assertPlaying(room);
+
+  if (room.drawerParticipantId === participantId) {
+    throw new GameplayError("DRAWER_CANNOT_GUESS", "The drawer cannot submit guesses");
+  }
+
+  const participant = room.participants.find((entry) => entry.id === participantId);
+
+  if (!participant) {
+    throw new GameplayError("NOT_PARTICIPANT", "Unable to submit guess");
+  }
+
+  const trimmed = rawText.trim();
+
+  if (trimmed.length === 0) {
+    throw new InvalidGuessError();
+  }
+
+  const secretWord = room.secretWord ?? "";
+  const isCorrect = trimmed.toLowerCase() === secretWord.toLowerCase();
+
+  const guess: GuessRecord = {
+    id: randomUUID(),
+    participantId,
+    participantName: participant.name,
+    text: trimmed,
+    isCorrect,
+    submittedAt: now()
+  };
+
+  room.guesses = room.guesses ?? [];
+  room.guesses.push(guess);
+
+  room.scores = room.scores ?? {};
+  if (isCorrect) {
+    room.scores[participantId] = (room.scores[participantId] ?? 0) + 100;
+  }
+
+  room.updatedAt = now();
+  rooms.set(room.code, room);
+
+  return cloneRoom(room);
 }
 
 export function toRoomSnapshot(room: Room, viewerParticipantId?: string): RoomSnapshot {
@@ -184,6 +297,10 @@ export function toRoomSnapshot(room: Room, viewerParticipantId?: string): RoomSn
     if (viewerParticipantId === room.drawerParticipantId && room.secretWord) {
       snapshot.secretWord = room.secretWord;
     }
+
+    snapshot.canvas = { strokes: [...(room.canvasStrokes ?? [])] };
+    snapshot.guesses = [...(room.guesses ?? [])];
+    snapshot.scores = { ...(room.scores ?? {}) };
   }
 
   return snapshot;

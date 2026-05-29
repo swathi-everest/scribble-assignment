@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { createRoomSchema, joinRoomSchema, normalizedRoomCodeParamsSchema } from "./schemas.js";
+import {
+  canvasStrokeSchema,
+  createRoomSchema,
+  joinRoomSchema,
+  normalizedRoomCodeParamsSchema,
+  submitGuessSchema
+} from "./schemas.js";
 
 describe("schemas", () => {
   it("createRoomSchema accepts a valid body with playerName", () => {
@@ -36,5 +42,34 @@ describe("schemas", () => {
     const result = normalizedRoomCodeParamsSchema.parse({ code: " abcd " });
 
     expect(result.code).toBe("abcd");
+  });
+
+  it("canvasStrokeSchema validates normalized points", () => {
+    const result = canvasStrokeSchema.parse({
+      points: [
+        [0, 0],
+        [1, 1]
+      ],
+      color: "#000000",
+      lineWidth: 4
+    });
+
+    expect(result.points).toHaveLength(2);
+    expect(() =>
+      canvasStrokeSchema.parse({
+        points: [[0, 0]],
+        color: "#000000",
+        lineWidth: 4
+      })
+    ).toThrow();
+  });
+
+  it("submitGuessSchema rejects whitespace-only guessText", () => {
+    expect(() =>
+      submitGuessSchema.parse({
+        participantId: "p1",
+        guessText: "   "
+      })
+    ).toThrow();
   });
 });

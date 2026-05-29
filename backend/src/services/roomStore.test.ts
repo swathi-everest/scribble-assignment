@@ -1,11 +1,17 @@
 import { describe, expect, it } from "vitest";
 import {
+  appendStroke,
+  clearCanvas,
   createRoom,
+  GameplayError,
+  getRoom,
+  InvalidGuessError,
   InvalidPlayerNameError,
   joinRoom,
   normalizePlayerName,
   selectSecretWord,
   startGame,
+  submitGuess,
   toRoomSnapshot
 } from "./roomStore.js";
 import { STARTER_WORDS } from "../seed/starterData.js";
@@ -157,5 +163,151 @@ describe("roomStore", () => {
   it("normalizePlayerName trims and rejects empty values", () => {
     expect(normalizePlayerName("  Pat  ")).toBe("Pat");
     expect(() => normalizePlayerName("   ")).toThrow(InvalidPlayerNameError);
+  });
+
+  it("startGame initializes canvas, guesses, and zero scores", () => {
+    const host = createRoom("Alice");
+    const guest = joinRoom(host.room.code, "Bob");
+
+    expect(guest).not.toBeNull();
+
+    const result = startGame(host.room.code, host.participantId);
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) {
+      return;
+    }
+
+    expect(result.room.canvasStrokes).toEqual([]);
+    expect(result.room.guesses).toEqual([]);
+    expect(result.room.scores?.[host.participantId]).toBe(0);
+    expect(result.room.scores?.[guest!.participantId]).toBe(0);
+
+    const snapshot = toRoomSnapshot(result.room, guest!.participantId);
+    expect(snapshot.canvas?.strokes).toEqual([]);
+    expect(snapshot.guesses).toEqual([]);
+    expect(snapshot.scores?.[guest!.participantId]).toBe(0);
+  });
+
+  it("appendStroke allows drawer and rejects guesser", () => {
+    const host = createRoom("Alice");
+    const guest = joinRoom(host.room.code, "Bob");
+
+    expect(guest).not.toBeNull();
+    startGame(host.room.code, host.participantId);
+
+    const stroke = {
+      points: [
+        [0.1, 0.1],
+        [0.2, 0.2]
+      ] as [number, number][],
+      color: "#000000",
+      lineWidth: 4
+    };
+
+    const updated = appendStroke(host.room.code, host.participantId, stroke);
+    expect(updated.canvasStrokes).toHaveLength(1);
+
+    expect(() => appendStroke(host.room.code, guest!.participantId, stroke)).toThrow(GameplayError);
+  });
+
+  it("clearCanvas preserves guesses and scores", () => {
+    const host = createRoom("Alice");
+    const guest = joinRoom(host.room.code, "Bob");
+
+    expect(guest).not.toBeNull();
+    startGame(host.room.code, host.participantId);
+
+    appendStroke(host.room.code, host.participantId, {
+      points: [
+        [0.1, 0.1],
+        [0.2, 0.2]
+      ],
+      color: "#000000",
+      lineWidth: 4
+    });
+
+    submitGuess(host.room.code, guest!.participantId, "wrong");
+
+    const cleared = clearCanvas(host.room.code, host.participantId);
+    expect(cleared.canvasStrokes).toEqual([]);
+    expect(cleared.guesses).toHaveLength(1);
+    expect(cleared.scores?.[guest!.participantId]).toBe(0);
+  });
+
+  it("submitGuess trims, compares case-insensitively, and scores", () => {
+    const host = createRoom("Alice");
+    const guest = joinRoom(host.room.code, "Bob");
+
+    expect(guest).not.toBeNull();
+    const started = startGame(host.room.code, host.participantId);
+
+    expect(started.ok).toBe(true);
+    if (!started.ok) {
+      return;
+    }
+
+    const secretWord = started.room.secretWord ?? "";
+    const wrong = submitGuess(host.room.code, guest!.participantId, "pizza");
+    expect(wrong.guesses?.[0]?.isCorrect).toBe(false);
+    expect(wrong.scores?.[guest!.participantId]).toBe(0);
+
+    const correct = submitGuess(host.room.code, guest!.participantId, `  ${secretWord.toUpperCase()}  `);
+    expect(correct.guesses).toHaveLength(2);
+    expect(correct.guesses?.[1]?.text).toBe(secretWord.toUpperCase());
+    expect(correct.guesses?.[1]?.isCorrect).toBe(true);
+    expect(correct.scores?.[guest!.participantId]).toBe(100);
+  });
+
+  it("submitGuess rejects empty and drawer submissions", () => {
+    const host = createRoom("Alice");
+    const guest = joinRoom(host.room.code, "Bob");
+
+    expect(guest).not.toBeNull();
+    startGame(host.room.code, host.participantId);
+
+    expect(() => submitGuess(host.room.code, guest!.participantId, "   ")).toThrow(InvalidGuessError);
+    expect(() => submitGuess(host.room.code, host.participantId, "rocket")).toThrow(GameplayError);
+  });
+
+  it("submitGuess adds cumulative score for multiple correct guesses", () => {
+    const host = createRoom("Alice");
+    const guest = joinRoom(host.room.code, "Bob");
+
+    expect(guest).not.toBeNull();
+    const started = startGame(host.room.code, host.participantId);
+
+    expect(started.ok).toBe(true);
+    if (!started.ok) {
+      return;
+    }
+
+    const secretWord = started.room.secretWord ?? "";
+
+    submitGuess(host.room.code, guest!.participantId, secretWord);
+    const second = submitGuess(host.room.code, guest!.participantId, secretWord);
+
+    expect(second.scores?.[guest!.participantId]).toBe(200);
+  });
+
+  it("keeps gameplay state isolated between rooms", () => {
+    const roomA = createRoom("Alice");
+    const roomB = createRoom("Bob");
+    const guestA = joinRoom(roomA.room.code, "Carol");
+    const guestB = joinRoom(roomB.room.code, "Dana");
+
+    expect(guestA).not.toBeNull();
+    expect(guestB).not.toBeNull();
+    startGame(roomA.room.code, roomA.participantId);
+    startGame(roomB.room.code, roomB.participantId);
+
+    submitGuess(roomA.room.code, guestA!.participantId, "test");
+
+    const roomBState = getRoom(roomB.room.code);
+    expect(roomBState).not.toBeNull();
+
+    const snapshotB = toRoomSnapshot(roomBState!, roomB.participantId);
+    expect(snapshotB.guesses).toEqual([]);
+    expect(snapshotB.scores?.[roomB.participantId]).toBe(0);
   });
 });
