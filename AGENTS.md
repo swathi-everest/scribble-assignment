@@ -3,6 +3,8 @@
 ## Project Context
 You are working on a monolithic repository for a multiplayer drawing game ("Scribble") containing an Express backend and a React frontend. Both environments strictly use TypeScript and ES Modules.
 
+Governance is defined in `.specify/memory/constitution.md`; that document supersedes conflicting AI advice.
+
 ## Tech Stack
 -   **Backend**: Node.js, Express, TypeScript, Zod, `tsx` for execution.
 -   **Frontend**: React (v18), React Router (v6), Vite, TypeScript.

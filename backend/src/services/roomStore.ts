@@ -60,7 +60,7 @@ export function createRoom(playerName?: string) {
   };
 
   rooms.set(room.code, room);
-
+console.log("room",room)
   return {
     room: cloneRoom(room),
     participantId: participant.id
