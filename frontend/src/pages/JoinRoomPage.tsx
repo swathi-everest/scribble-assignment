@@ -18,6 +18,11 @@ export function JoinRoomPage() {
       return;
     }
 
+    if (playerName.trim() === "") {
+      setError("Player name is required");
+      return;
+    }
+
     try {
       setError(null);
       await roomStore.joinRoom(roomCode.trim().toUpperCase(), playerName);
@@ -42,6 +47,7 @@ export function JoinRoomPage() {
             value={playerName}
             onChange={(event) => setPlayerName(event.target.value)}
             placeholder="Second pencil"
+            required
           />
         </label>
 

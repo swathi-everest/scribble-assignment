@@ -10,6 +10,7 @@ import {
 import {
   createRoom,
   getRoom,
+  InvalidPlayerNameError,
   joinRoom,
   startGame,
   toRoomSnapshot
@@ -28,6 +29,10 @@ export function createRoomsRouter() {
         room: toRoomSnapshot(result.room, result.participantId)
       });
     } catch (error) {
+      if (error instanceof InvalidPlayerNameError) {
+        next(new HttpError(400, error.message));
+        return;
+      }
       next(error);
     }
   });
@@ -47,6 +52,10 @@ export function createRoomsRouter() {
         room: toRoomSnapshot(result.room, result.participantId)
       });
     } catch (error) {
+      if (error instanceof InvalidPlayerNameError) {
+        next(new HttpError(400, error.message));
+        return;
+      }
       next(error);
     }
   });

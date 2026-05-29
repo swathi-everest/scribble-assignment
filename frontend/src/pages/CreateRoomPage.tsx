@@ -12,6 +12,11 @@ export function CreateRoomPage() {
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
+    if (playerName.trim() === "") {
+      setError("Player name is required");
+      return;
+    }
+
     try {
       setError(null);
       await roomStore.createRoom(playerName);
@@ -36,6 +41,7 @@ export function CreateRoomPage() {
             value={playerName}
             onChange={(event) => setPlayerName(event.target.value)}
             placeholder="Sketch captain"
+            required
           />
         </label>
         {error ? <p className="form__error">{error}</p> : null}

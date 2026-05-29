@@ -6,6 +6,13 @@ const rooms = new Map<string, Room>();
 
 export type StartGameFailure = "NOT_FOUND" | "NOT_HOST" | "NOT_ENOUGH_PLAYERS" | "ALREADY_PLAYING";
 
+export class InvalidPlayerNameError extends Error {
+  constructor(message = "Player name is required") {
+    super(message);
+    this.name = "InvalidPlayerNameError";
+  }
+}
+
 function now() {
   return new Date().toISOString();
 }
@@ -31,14 +38,20 @@ function generateUniqueCode() {
   return code;
 }
 
-function displayName(name?: string) {
-  return name || "Player";
+export function normalizePlayerName(name: string): string {
+  const trimmed = name.trim();
+
+  if (trimmed.length === 0) {
+    throw new InvalidPlayerNameError();
+  }
+
+  return trimmed;
 }
 
-function createParticipant(name?: string): Participant {
+function createParticipant(name: string): Participant {
   return {
     id: randomUUID(),
-    name: displayName(name),
+    name: normalizePlayerName(name),
     joinedAt: now()
   };
 }
@@ -51,7 +64,18 @@ export function listWords() {
   return [...STARTER_WORDS];
 }
 
-export function createRoom(playerName?: string) {
+export function selectSecretWord(code: string): string {
+  let sum = 0;
+
+  for (const char of code) {
+    sum += char.charCodeAt(0);
+  }
+
+  const index = sum % STARTER_WORDS.length;
+  return STARTER_WORDS[index] ?? STARTER_WORDS[0];
+}
+
+export function createRoom(playerName: string) {
   const participant = createParticipant(playerName);
   const room: Room = {
     code: generateUniqueCode(),
@@ -70,7 +94,7 @@ export function createRoom(playerName?: string) {
   };
 }
 
-export function joinRoom(code: string, playerName?: string) {
+export function joinRoom(code: string, playerName: string) {
   const room = rooms.get(code.toUpperCase());
 
   if (!room) {
@@ -122,6 +146,8 @@ export function startGame(
   }
 
   room.status = "playing";
+  room.drawerParticipantId = room.hostParticipantId;
+  room.secretWord = selectSecretWord(room.code);
   room.updatedAt = now();
   rooms.set(room.code, room);
 
@@ -129,17 +155,36 @@ export function startGame(
 }
 
 export function toRoomSnapshot(room: Room, viewerParticipantId?: string): RoomSnapshot {
-  void viewerParticipantId;
-
-  return {
+  const snapshot: RoomSnapshot = {
     code: room.code,
     status: room.status,
     hostParticipantId: room.hostParticipantId,
-    participants: room.participants.map((participant) => ({
-      ...participant,
-      isHost: participant.id === room.hostParticipantId
-    })),
+    participants: room.participants.map((participant) => {
+      const participantSnapshot = {
+        ...participant,
+        isHost: participant.id === room.hostParticipantId
+      };
+
+      if (room.status === "playing" && room.drawerParticipantId) {
+        return {
+          ...participantSnapshot,
+          role: participant.id === room.drawerParticipantId ? ("drawer" as const) : ("guesser" as const)
+        };
+      }
+
+      return participantSnapshot;
+    }),
     availableWords: listWords(),
     roles: [...STARTER_ROLES]
   };
+
+  if (room.status === "playing" && room.drawerParticipantId) {
+    snapshot.drawerParticipantId = room.drawerParticipantId;
+
+    if (viewerParticipantId === room.drawerParticipantId && room.secretWord) {
+      snapshot.secretWord = room.secretWord;
+    }
+  }
+
+  return snapshot;
 }

@@ -1,11 +1,13 @@
 import { z } from "zod";
 
+export const playerNameSchema = z.string().trim().min(1, "Player name is required");
+
 export const createRoomSchema = z.object({
-  playerName: z.string().optional()
+  playerName: playerNameSchema
 });
 
 export const joinRoomSchema = z.object({
-  playerName: z.string().optional()
+  playerName: playerNameSchema
 });
 
 export const normalizedRoomCodeParamsSchema = z.object({

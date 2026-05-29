@@ -5,12 +5,15 @@ export interface Participant {
   name: string;
   joinedAt: string;
   isHost: boolean;
+  role?: ParticipantRole;
 }
 
 export interface RoomSnapshot {
   code: string;
   status: "lobby" | "playing";
   hostParticipantId: string;
+  drawerParticipantId?: string;
+  secretWord?: string;
   participants: Participant[];
   availableWords: string[];
   roles: ParticipantRole[];
