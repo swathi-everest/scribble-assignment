@@ -6,6 +6,10 @@ const rooms = new Map<string, Room>();
 
 export type StartGameFailure = "NOT_FOUND" | "NOT_HOST" | "NOT_ENOUGH_PLAYERS" | "ALREADY_PLAYING";
 
+export type EndRoundFailure = "NOT_FOUND" | "NOT_HOST" | "NOT_PLAYING";
+
+export type RestartRoomFailure = "NOT_FOUND" | "NOT_HOST" | "NOT_IN_RESULT";
+
 export class InvalidPlayerNameError extends Error {
   constructor(message = "Player name is required") {
     super(message);
@@ -172,7 +176,7 @@ export function startGame(
     return { ok: false, reason: "NOT_FOUND" };
   }
 
-  if (room.status === "playing") {
+  if (room.status === "playing" || room.status === "result") {
     return { ok: false, reason: "ALREADY_PLAYING" };
   }
 
@@ -267,6 +271,61 @@ export function submitGuess(code: string, participantId: string, rawText: string
   return cloneRoom(room);
 }
 
+export function endRound(
+  code: string,
+  participantId: string
+): { ok: true; room: Room } | { ok: false; reason: EndRoundFailure } {
+  const room = rooms.get(code.toUpperCase());
+
+  if (!room) {
+    return { ok: false, reason: "NOT_FOUND" };
+  }
+
+  if (room.hostParticipantId !== participantId) {
+    return { ok: false, reason: "NOT_HOST" };
+  }
+
+  if (room.status !== "playing") {
+    return { ok: false, reason: "NOT_PLAYING" };
+  }
+
+  room.status = "result";
+  room.updatedAt = now();
+  rooms.set(room.code, room);
+
+  return { ok: true, room: cloneRoom(room) };
+}
+
+export function restartRoom(
+  code: string,
+  participantId: string
+): { ok: true; room: Room } | { ok: false; reason: RestartRoomFailure } {
+  const room = rooms.get(code.toUpperCase());
+
+  if (!room) {
+    return { ok: false, reason: "NOT_FOUND" };
+  }
+
+  if (room.hostParticipantId !== participantId) {
+    return { ok: false, reason: "NOT_HOST" };
+  }
+
+  if (room.status !== "result") {
+    return { ok: false, reason: "NOT_IN_RESULT" };
+  }
+
+  room.status = "lobby";
+  delete room.drawerParticipantId;
+  delete room.secretWord;
+  delete room.canvasStrokes;
+  delete room.guesses;
+  delete room.scores;
+  room.updatedAt = now();
+  rooms.set(room.code, room);
+
+  return { ok: true, room: cloneRoom(room) };
+}
+
 export function toRoomSnapshot(room: Room, viewerParticipantId?: string): RoomSnapshot {
   const snapshot: RoomSnapshot = {
     code: room.code,
@@ -299,6 +358,15 @@ export function toRoomSnapshot(room: Room, viewerParticipantId?: string): RoomSn
     }
 
     snapshot.canvas = { strokes: [...(room.canvasStrokes ?? [])] };
+    snapshot.guesses = [...(room.guesses ?? [])];
+    snapshot.scores = { ...(room.scores ?? {}) };
+  }
+
+  if (room.status === "result") {
+    if (room.secretWord) {
+      snapshot.secretWord = room.secretWord;
+    }
+
     snapshot.guesses = [...(room.guesses ?? [])];
     snapshot.scores = { ...(room.scores ?? {}) };
   }

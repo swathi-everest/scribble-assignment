@@ -15,6 +15,11 @@ export function GamePage() {
   const roomStore = useRoomStore();
   const { room, participantId } = useRoomState();
   const [refreshError, setRefreshError] = useState<string | null>(null);
+  const [endRoundError, setEndRoundError] = useState<string | null>(null);
+
+  const isHost = Boolean(
+    room && participantId && room.hostParticipantId === participantId
+  );
 
   useEffect(() => {
     if (!room) {
@@ -22,10 +27,15 @@ export function GamePage() {
       return;
     }
 
+    if (room.status === "result") {
+      navigate("/result", { replace: true });
+      return;
+    }
+
     if (room.status !== "playing") {
       navigate("/lobby", { replace: true });
     }
-  }, [navigate, room]);
+  }, [navigate, room, room?.status]);
 
   useEffect(() => {
     if (!room || room.status !== "playing") {
@@ -49,6 +59,18 @@ export function GamePage() {
       window.clearInterval(intervalId);
     };
   }, [room, room?.code, room?.status, roomStore]);
+
+  async function handleEndRound() {
+    try {
+      setEndRoundError(null);
+      const updatedRoom = await roomStore.endRound();
+      if (updatedRoom.status === "result") {
+        navigate("/result");
+      }
+    } catch (caughtError) {
+      setEndRoundError(caughtError instanceof Error ? caughtError.message : "Unable to end round");
+    }
+  }
 
   if (!room || room.status !== "playing") {
     return null;
@@ -77,6 +99,7 @@ export function GamePage() {
       </div>
 
       {refreshError ? <p className="form__error">{refreshError}</p> : null}
+      {endRoundError ? <p className="form__error">{endRoundError}</p> : null}
 
       <div className="game-page__layout">
         <aside className="game-page__sidebar game-page__sidebar--left">
@@ -127,10 +150,15 @@ export function GamePage() {
         </aside>
       </div>
 
-      <div className="button-row">
+      <div className="button-row button-row--spread">
         <button className="button button--secondary" onClick={() => navigate("/lobby")}>
           Exit Game
         </button>
+        {isHost ? (
+          <button className="button button--primary" onClick={handleEndRound}>
+            End Round
+          </button>
+        ) : null}
       </div>
     </section>
   );

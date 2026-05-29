@@ -24,6 +24,14 @@ export const startGameSchema = z.object({
   participantId: z.string().min(1, "Participant id is required")
 });
 
+export const endRoundSchema = z.object({
+  participantId: z.string().min(1, "Participant id is required")
+});
+
+export const restartSchema = z.object({
+  participantId: z.string().min(1, "Participant id is required")
+});
+
 const normalizedPointSchema = z.tuple([
   z.number().min(0).max(1),
   z.number().min(0).max(1)

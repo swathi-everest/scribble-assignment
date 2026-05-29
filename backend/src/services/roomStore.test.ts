@@ -3,12 +3,14 @@ import {
   appendStroke,
   clearCanvas,
   createRoom,
+  endRound,
   GameplayError,
   getRoom,
   InvalidGuessError,
   InvalidPlayerNameError,
   joinRoom,
   normalizePlayerName,
+  restartRoom,
   selectSecretWord,
   startGame,
   submitGuess,
@@ -288,6 +290,202 @@ describe("roomStore", () => {
     const second = submitGuess(host.room.code, guest!.participantId, secretWord);
 
     expect(second.scores?.[guest!.participantId]).toBe(200);
+  });
+
+  it("startGame rejects when room is in result", () => {
+    const host = createRoom("Alice");
+    const guest = joinRoom(host.room.code, "Bob");
+
+    expect(guest).not.toBeNull();
+    startGame(host.room.code, host.participantId);
+    endRound(host.room.code, host.participantId);
+
+    const result = startGame(host.room.code, host.participantId);
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.reason).toBe("ALREADY_PLAYING");
+    }
+  });
+
+  it("endRound transitions playing to result for host", () => {
+    const host = createRoom("Alice");
+    const guest = joinRoom(host.room.code, "Bob");
+
+    expect(guest).not.toBeNull();
+    const started = startGame(host.room.code, host.participantId);
+
+    expect(started.ok).toBe(true);
+    if (!started.ok) {
+      return;
+    }
+
+    submitGuess(host.room.code, guest!.participantId, "wrong");
+    const secretWord = started.room.secretWord ?? "";
+    const scoresBefore = { ...(started.room.scores ?? {}) };
+
+    const ended = endRound(host.room.code, host.participantId);
+
+    expect(ended.ok).toBe(true);
+    if (!ended.ok) {
+      return;
+    }
+
+    expect(ended.room.status).toBe("result");
+    expect(ended.room.secretWord).toBe(secretWord);
+    expect(ended.room.guesses).toHaveLength(1);
+    expect(ended.room.scores).toEqual(scoresBefore);
+  });
+
+  it("endRound rejects non-host and invalid phases", () => {
+    const host = createRoom("Alice");
+    const guest = joinRoom(host.room.code, "Bob");
+
+    expect(guest).not.toBeNull();
+
+    const fromLobby = endRound(host.room.code, host.participantId);
+    expect(fromLobby.ok).toBe(false);
+    if (!fromLobby.ok) {
+      expect(fromLobby.reason).toBe("NOT_PLAYING");
+    }
+
+    startGame(host.room.code, host.participantId);
+
+    const fromGuest = endRound(host.room.code, guest!.participantId);
+    expect(fromGuest.ok).toBe(false);
+    if (!fromGuest.ok) {
+      expect(fromGuest.reason).toBe("NOT_HOST");
+    }
+
+    endRound(host.room.code, host.participantId);
+
+    const fromResult = endRound(host.room.code, host.participantId);
+    expect(fromResult.ok).toBe(false);
+    if (!fromResult.ok) {
+      expect(fromResult.reason).toBe("NOT_PLAYING");
+    }
+  });
+
+  it("result snapshot reveals secretWord to guesser", () => {
+    const host = createRoom("Alice");
+    const guest = joinRoom(host.room.code, "Bob");
+
+    expect(guest).not.toBeNull();
+    startGame(host.room.code, host.participantId);
+
+    const playingSnapshot = toRoomSnapshot(getRoom(host.room.code)!, guest!.participantId);
+    expect(playingSnapshot.secretWord).toBeUndefined();
+
+    endRound(host.room.code, host.participantId);
+
+    const resultSnapshot = toRoomSnapshot(getRoom(host.room.code)!, guest!.participantId);
+    expect(resultSnapshot.secretWord).toBeDefined();
+    expect(resultSnapshot.guesses).toBeDefined();
+    expect(resultSnapshot.scores).toBeDefined();
+    expect(resultSnapshot.canvas).toBeUndefined();
+  });
+
+  it("restartRoom clears round state and preserves roster", () => {
+    const host = createRoom("Alice");
+    const guest = joinRoom(host.room.code, "Bob");
+
+    expect(guest).not.toBeNull();
+    startGame(host.room.code, host.participantId);
+    endRound(host.room.code, host.participantId);
+
+    const restarted = restartRoom(host.room.code, host.participantId);
+
+    expect(restarted.ok).toBe(true);
+    if (!restarted.ok) {
+      return;
+    }
+
+    expect(restarted.room.status).toBe("lobby");
+    expect(restarted.room.participants).toHaveLength(2);
+    expect(restarted.room.participants.map((p) => p.id).sort()).toEqual(
+      [host.participantId, guest!.participantId].sort()
+    );
+    expect(restarted.room.secretWord).toBeUndefined();
+    expect(restarted.room.drawerParticipantId).toBeUndefined();
+    expect(restarted.room.canvasStrokes).toBeUndefined();
+    expect(restarted.room.guesses).toBeUndefined();
+    expect(restarted.room.scores).toBeUndefined();
+
+    const lobbySnapshot = toRoomSnapshot(restarted.room, guest!.participantId);
+    expect(lobbySnapshot.secretWord).toBeUndefined();
+    expect(lobbySnapshot.guesses).toBeUndefined();
+    expect(lobbySnapshot.scores).toBeUndefined();
+    expect(lobbySnapshot.canvas).toBeUndefined();
+  });
+
+  it("restartRoom rejects non-host and invalid phases", () => {
+    const host = createRoom("Alice");
+    const guest = joinRoom(host.room.code, "Bob");
+
+    expect(guest).not.toBeNull();
+    startGame(host.room.code, host.participantId);
+
+    const fromPlaying = restartRoom(host.room.code, host.participantId);
+    expect(fromPlaying.ok).toBe(false);
+    if (!fromPlaying.ok) {
+      expect(fromPlaying.reason).toBe("NOT_IN_RESULT");
+    }
+
+    endRound(host.room.code, host.participantId);
+
+    const fromGuest = restartRoom(host.room.code, guest!.participantId);
+    expect(fromGuest.ok).toBe(false);
+    if (!fromGuest.ok) {
+      expect(fromGuest.reason).toBe("NOT_HOST");
+    }
+
+    restartRoom(host.room.code, host.participantId);
+
+    const fromLobby = restartRoom(host.room.code, host.participantId);
+    expect(fromLobby.ok).toBe(false);
+    if (!fromLobby.ok) {
+      expect(fromLobby.reason).toBe("NOT_IN_RESULT");
+    }
+  });
+
+  it("blocks canvas and guess mutations while in result", () => {
+    const host = createRoom("Alice");
+    const guest = joinRoom(host.room.code, "Bob");
+
+    expect(guest).not.toBeNull();
+    startGame(host.room.code, host.participantId);
+    endRound(host.room.code, host.participantId);
+
+    const stroke = {
+      points: [
+        [0.1, 0.1],
+        [0.2, 0.2]
+      ] as [number, number][],
+      color: "#000000",
+      lineWidth: 4
+    };
+
+    expect(() => appendStroke(host.room.code, host.participantId, stroke)).toThrow(GameplayError);
+    expect(() => submitGuess(host.room.code, guest!.participantId, "rocket")).toThrow(GameplayError);
+  });
+
+  it("second restart while lobby does not corrupt roster", () => {
+    const host = createRoom("Alice");
+    joinRoom(host.room.code, "Bob");
+    startGame(host.room.code, host.participantId);
+    endRound(host.room.code, host.participantId);
+    restartRoom(host.room.code, host.participantId);
+
+    const second = restartRoom(host.room.code, host.participantId);
+
+    expect(second.ok).toBe(false);
+    if (!second.ok) {
+      expect(second.reason).toBe("NOT_IN_RESULT");
+    }
+
+    const room = getRoom(host.room.code);
+    expect(room?.participants).toHaveLength(2);
+    expect(room?.status).toBe("lobby");
   });
 
   it("keeps gameplay state isolated between rooms", () => {

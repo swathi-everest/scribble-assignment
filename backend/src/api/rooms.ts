@@ -3,9 +3,11 @@ import {
   appendStrokeSchema,
   clearCanvasSchema,
   createRoomSchema,
+  endRoundSchema,
   HttpError,
   joinRoomSchema,
   normalizedRoomCodeParamsSchema,
+  restartSchema,
   roomViewerQuerySchema,
   startGameSchema,
   submitGuessSchema
@@ -14,11 +16,13 @@ import {
   appendStroke,
   clearCanvas,
   createRoom,
+  endRound,
   GameplayError,
   getRoom,
   InvalidGuessError,
   InvalidPlayerNameError,
   joinRoom,
+  restartRoom,
   startGame,
   submitGuess,
   toRoomSnapshot
@@ -163,6 +167,60 @@ export function createRoomsRouter() {
         next(mapGameplayError(error));
         return;
       }
+      next(error);
+    }
+  });
+
+  router.post("/:code/end-round", (request, response, next) => {
+    try {
+      const { code } = normalizedRoomCodeParamsSchema.parse(request.params);
+      const { participantId } = endRoundSchema.parse(request.body);
+      const result = endRound(code.toUpperCase(), participantId);
+
+      if (!result.ok) {
+        switch (result.reason) {
+          case "NOT_FOUND":
+            throw new HttpError(404, "Unable to load room");
+          case "NOT_HOST":
+            throw new HttpError(403, "Only the host can end the round");
+          case "NOT_PLAYING":
+            throw new HttpError(400, "Game is not in progress");
+          default:
+            throw new HttpError(400, "Unable to end round");
+        }
+      }
+
+      response.json({
+        room: toRoomSnapshot(result.room, participantId)
+      });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.post("/:code/restart", (request, response, next) => {
+    try {
+      const { code } = normalizedRoomCodeParamsSchema.parse(request.params);
+      const { participantId } = restartSchema.parse(request.body);
+      const result = restartRoom(code.toUpperCase(), participantId);
+
+      if (!result.ok) {
+        switch (result.reason) {
+          case "NOT_FOUND":
+            throw new HttpError(404, "Unable to load room");
+          case "NOT_HOST":
+            throw new HttpError(403, "Only the host can restart the game");
+          case "NOT_IN_RESULT":
+            throw new HttpError(400, "Room is not in result state");
+          default:
+            throw new HttpError(400, "Unable to restart game");
+        }
+      }
+
+      response.json({
+        room: toRoomSnapshot(result.room, participantId)
+      });
+    } catch (error) {
       next(error);
     }
   });

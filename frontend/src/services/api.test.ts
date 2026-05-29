@@ -143,6 +143,62 @@ describe("api service", () => {
     );
   });
 
+  it("endRound sends POST to end-round endpoint", async () => {
+    const mockResponse = {
+      ok: true,
+      json: () =>
+        Promise.resolve({
+          room: {
+            code: "ABCD",
+            status: "result",
+            secretWord: "rocket",
+            guesses: [],
+            scores: { p1: 0, p2: 100 }
+          }
+        })
+    };
+    vi.mocked(fetch).mockResolvedValue(mockResponse as unknown as Response);
+
+    const result = await api.endRound("ABCD", "p1");
+
+    expect(fetch).toHaveBeenCalledWith(
+      expect.stringContaining("/rooms/ABCD/end-round"),
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ participantId: "p1" })
+      })
+    );
+    expect(result.room.status).toBe("result");
+    expect(result.room.secretWord).toBe("rocket");
+  });
+
+  it("restartRoom sends POST to restart endpoint", async () => {
+    const mockResponse = {
+      ok: true,
+      json: () =>
+        Promise.resolve({
+          room: {
+            code: "ABCD",
+            status: "lobby",
+            hostParticipantId: "p1",
+            participants: []
+          }
+        })
+    };
+    vi.mocked(fetch).mockResolvedValue(mockResponse as unknown as Response);
+
+    const result = await api.restartRoom("ABCD", "p1");
+
+    expect(fetch).toHaveBeenCalledWith(
+      expect.stringContaining("/rooms/ABCD/restart"),
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ participantId: "p1" })
+      })
+    );
+    expect(result.room.status).toBe("lobby");
+  });
+
   it("fetchRoom accepts playing snapshot without secretWord for guessers", async () => {
     const mockResponse = {
       ok: true,

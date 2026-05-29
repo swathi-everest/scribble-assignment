@@ -2,8 +2,10 @@ import { describe, expect, it } from "vitest";
 import {
   canvasStrokeSchema,
   createRoomSchema,
+  endRoundSchema,
   joinRoomSchema,
   normalizedRoomCodeParamsSchema,
+  restartSchema,
   submitGuessSchema
 } from "./schemas.js";
 
@@ -62,6 +64,18 @@ describe("schemas", () => {
         lineWidth: 4
       })
     ).toThrow();
+  });
+
+  it("endRoundSchema requires participantId", () => {
+    const result = endRoundSchema.parse({ participantId: "p1" });
+    expect(result.participantId).toBe("p1");
+    expect(() => endRoundSchema.parse({})).toThrow();
+  });
+
+  it("restartSchema requires participantId", () => {
+    const result = restartSchema.parse({ participantId: "p1" });
+    expect(result.participantId).toBe("p1");
+    expect(() => restartSchema.parse({})).toThrow();
   });
 
   it("submitGuessSchema rejects whitespace-only guessText", () => {

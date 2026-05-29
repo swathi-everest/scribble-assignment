@@ -6,13 +6,14 @@ alwaysApply: true
 For additional context about technologies, project structure, shell commands, and
 implementation guidance, read the active feature plan:
 
-- **Plan**: `specs/003-gameplay-interaction/plan.md`
-- **Spec**: `specs/003-gameplay-interaction/spec.md`
-- **API contract**: `specs/003-gameplay-interaction/contracts/rooms-api.md`
+- **Plan**: `specs/006-result-restart-validation/plan.md`
+- **Spec**: `specs/006-result-restart-validation/spec.md`
+- **API contract**: `specs/006-result-restart-validation/contracts/rooms-api.md`
 
-**Stack (Scenario 3)**: React 18 + TypeScript + **Vite** (frontend); **Node.js** +
+**Stack (Scenario 4)**: React 18 + TypeScript + **Vite** (frontend); **Node.js** +
 **Express** + TypeScript + Zod (backend). Vitest in both packages. HTTP polling ~2s
-(lobby + game); in-memory `roomStore` with viewer-filtered snapshots. No WebSockets,
-DB, or auth. Drawer-only `secretWord`; canvas strokes + guesses/scores on playing
-snapshots; POST canvas/guess mutations.
+(lobby + game + result); in-memory `roomStore` with viewer-filtered snapshots. No
+WebSockets, DB, or auth. `playing`: drawer-only `secretWord`; `result`: word + final
+scores + guess history for all; host `end-round` and `restart`; restart clears round
+state and preserves roster.
 <!-- SPECKIT END -->

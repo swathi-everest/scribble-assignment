@@ -28,6 +28,11 @@ export function LobbyPage() {
   useEffect(() => {
     if (room?.status === "playing") {
       navigate("/game", { replace: true });
+      return;
+    }
+
+    if (room?.status === "result") {
+      navigate("/result", { replace: true });
     }
   }, [navigate, room?.status]);
 
