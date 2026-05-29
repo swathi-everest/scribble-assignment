@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createRoomSchema, roomCodeParamsSchema } from "./schemas.js";
+import { createRoomSchema, normalizedRoomCodeParamsSchema } from "./schemas.js";
 
 describe("schemas", () => {
   it("createRoomSchema accepts a valid body with playerName", () => {
@@ -8,7 +8,18 @@ describe("schemas", () => {
     expect(result.playerName).toBe("Alice");
   });
 
-  it("roomCodeParamsSchema rejects missing code", () => {
-    expect(() => roomCodeParamsSchema.parse({})).toThrow();
+  it("normalizedRoomCodeParamsSchema rejects missing code", () => {
+    expect(() => normalizedRoomCodeParamsSchema.parse({})).toThrow();
+  });
+
+  it("normalizedRoomCodeParamsSchema rejects empty and whitespace-only codes", () => {
+    expect(() => normalizedRoomCodeParamsSchema.parse({ code: "" })).toThrow();
+    expect(() => normalizedRoomCodeParamsSchema.parse({ code: "   " })).toThrow();
+  });
+
+  it("normalizedRoomCodeParamsSchema trims valid codes", () => {
+    const result = normalizedRoomCodeParamsSchema.parse({ code: " abcd " });
+
+    expect(result.code).toBe("abcd");
   });
 });

@@ -3,6 +3,14 @@ alwaysApply: true
 ---
 
 <!-- SPECKIT START -->
-For additional context about technologies to be used, project structure,
-shell commands, and other important information, read the current plan
+For additional context about technologies, project structure, shell commands, and
+implementation guidance, read the active feature plan:
+
+- **Plan**: `specs/001-room-setup-lobby/plan.md`
+- **Spec**: `specs/001-room-setup-lobby/spec.md`
+- **API contract**: `specs/001-room-setup-lobby/contracts/rooms-api.md`
+
+**Stack (Scenario 1)**: React 18 + TypeScript + **Vite** (frontend); **Node.js** +
+**Express** + TypeScript + Zod (backend). Vitest optional in both packages. HTTP
+polling ~2s; in-memory `roomStore` only. No WebSockets, DB, or auth.
 <!-- SPECKIT END -->

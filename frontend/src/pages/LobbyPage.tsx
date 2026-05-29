@@ -5,17 +5,53 @@ import { PageHeader } from "../components/PageHeader";
 import { RoomCodeBadge } from "../components/RoomCodeBadge";
 import { useRoomState, useRoomStore } from "../state/roomStore";
 
+const LOBBY_POLL_MS = 2000;
+
 export function LobbyPage() {
   const navigate = useNavigate();
   const roomStore = useRoomStore();
-  const { room, error, isLoading } = useRoomState();
+  const { room, participantId, error, isLoading } = useRoomState();
   const [refreshError, setRefreshError] = useState<string | null>(null);
+  const [startError, setStartError] = useState<string | null>(null);
+
+  const isHost = Boolean(
+    room && participantId && room.hostParticipantId === participantId
+  );
+  const canStart = Boolean(room && room.participants.length >= 2);
 
   useEffect(() => {
     if (!room) {
       navigate("/", { replace: true });
     }
   }, [navigate, room]);
+
+  useEffect(() => {
+    if (room?.status === "playing") {
+      navigate("/game", { replace: true });
+    }
+  }, [navigate, room?.status]);
+
+  useEffect(() => {
+    if (!room || room.status !== "lobby") {
+      return;
+    }
+
+    async function pollRoom() {
+      try {
+        setRefreshError(null);
+        await roomStore.fetchRoom();
+      } catch (caughtError) {
+        setRefreshError(
+          caughtError instanceof Error ? caughtError.message : "Unable to refresh room"
+        );
+      }
+    }
+
+    const intervalId = window.setInterval(pollRoom, LOBBY_POLL_MS);
+    return () => {
+      window.clearInterval(intervalId);
+    };
+  }, [room?.code, room?.status, roomStore]);
 
   async function handleRefresh() {
     try {
@@ -26,9 +62,24 @@ export function LobbyPage() {
     }
   }
 
+  async function handleStart() {
+    try {
+      setStartError(null);
+      const updatedRoom = await roomStore.startGame();
+      if (updatedRoom.status === "playing") {
+        navigate("/game");
+      }
+    } catch (caughtError) {
+      setStartError(caughtError instanceof Error ? caughtError.message : "Unable to start game");
+    }
+  }
+
   if (!room) {
     return null;
   }
+
+  const statusMessage =
+    error ?? refreshError ?? startError ?? "Waiting for the host to start the game.";
 
   return (
     <section className="panel placeholder-page">
@@ -50,7 +101,9 @@ export function LobbyPage() {
               {room.participants.map((participant) => (
                 <li key={participant.id}>
                   <span>{participant.name}</span>
-                  <span className="player-list__meta">joined</span>
+                  <span className="player-list__meta">
+                    {participant.isHost ? "host" : "joined"}
+                  </span>
                 </li>
               ))}
             </ul>
@@ -58,10 +111,16 @@ export function LobbyPage() {
         </Card>
 
         <Card title="Status">
-          <p className="status-line" style={{ backgroundColor: isLoading ? '#fef3c7' : '#e0e7ff', color: isLoading ? '#b45309' : '#3730a3' }}>
+          <p
+            className="status-line"
+            style={{
+              backgroundColor: isLoading ? "#fef3c7" : "#e0e7ff",
+              color: isLoading ? "#b45309" : "#3730a3"
+            }}
+          >
             {isLoading ? "Refreshing players..." : "Ready to play"}
           </p>
-          <p style={{ marginTop: '8px' }}>{error ?? refreshError ?? "Waiting for the host to start the game."}</p>
+          <p style={{ marginTop: "8px" }}>{statusMessage}</p>
         </Card>
       </div>
 
@@ -69,9 +128,22 @@ export function LobbyPage() {
         <button className="button button--secondary" disabled={isLoading} onClick={handleRefresh}>
           {isLoading ? "Refreshing..." : "Refresh Room"}
         </button>
-        <button className="button button--primary" onClick={() => navigate("/game")}>
-          Start Game
-        </button>
+        {isHost ? (
+          <div className="lobby-start">
+            <button
+              className="button button--primary"
+              disabled={isLoading || !canStart}
+              onClick={handleStart}
+            >
+              Start Game
+            </button>
+            {!canStart ? (
+              <p className="form__error" style={{ marginTop: "8px" }}>
+                At least two players are required to start.
+              </p>
+            ) : null}
+          </div>
+        ) : null}
       </div>
     </section>
   );

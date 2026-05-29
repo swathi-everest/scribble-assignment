@@ -3,10 +3,17 @@ import {
   createRoomSchema,
   HttpError,
   joinRoomSchema,
-  roomCodeParamsSchema,
-  roomViewerQuerySchema
+  normalizedRoomCodeParamsSchema,
+  roomViewerQuerySchema,
+  startGameSchema
 } from "./schemas.js";
-import { createRoom, getRoom, joinRoom, toRoomSnapshot } from "../services/roomStore.js";
+import {
+  createRoom,
+  getRoom,
+  joinRoom,
+  startGame,
+  toRoomSnapshot
+} from "../services/roomStore.js";
 
 export function createRoomsRouter() {
   const router = Router();
@@ -27,7 +34,7 @@ export function createRoomsRouter() {
 
   router.post("/:code/join", (request, response, next) => {
     try {
-      const { code } = roomCodeParamsSchema.parse(request.params);
+      const { code } = normalizedRoomCodeParamsSchema.parse(request.params);
       const { playerName } = joinRoomSchema.parse(request.body);
       const result = joinRoom(code.toUpperCase(), playerName);
 
@@ -46,7 +53,7 @@ export function createRoomsRouter() {
 
   router.get("/:code", (request, response, next) => {
     try {
-      const { code } = roomCodeParamsSchema.parse(request.params);
+      const { code } = normalizedRoomCodeParamsSchema.parse(request.params);
       const { participantId } = roomViewerQuerySchema.parse(request.query);
       const room = getRoom(code.toUpperCase());
 
@@ -56,6 +63,35 @@ export function createRoomsRouter() {
 
       response.json({
         room: toRoomSnapshot(room, participantId)
+      });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.post("/:code/start", (request, response, next) => {
+    try {
+      const { code } = normalizedRoomCodeParamsSchema.parse(request.params);
+      const { participantId } = startGameSchema.parse(request.body);
+      const result = startGame(code.toUpperCase(), participantId);
+
+      if (!result.ok) {
+        switch (result.reason) {
+          case "NOT_FOUND":
+            throw new HttpError(404, "Unable to load room");
+          case "NOT_HOST":
+            throw new HttpError(403, "Only the host can start the game");
+          case "NOT_ENOUGH_PLAYERS":
+            throw new HttpError(400, "At least two players are required");
+          case "ALREADY_PLAYING":
+            throw new HttpError(400, "Game has already started");
+          default:
+            throw new HttpError(400, "Unable to start game");
+        }
+      }
+
+      response.json({
+        room: toRoomSnapshot(result.room, participantId)
       });
     } catch (error) {
       next(error);

@@ -14,10 +14,15 @@ export function GamePage() {
   useEffect(() => {
     if (!room) {
       navigate("/", { replace: true });
+      return;
+    }
+
+    if (room.status !== "playing") {
+      navigate("/lobby", { replace: true });
     }
   }, [navigate, room]);
 
-  if (!room) {
+  if (!room || room.status !== "playing") {
     return null;
   }
 
@@ -41,7 +46,10 @@ export function GamePage() {
 
         <div className="game-page__main">
           <Card title="Canvas">
-            <div className="canvas-placeholder" style={{ minHeight: '500px', backgroundColor: '#ffffff', border: '1px solid #e5e7eb' }}>
+            <div
+              className="canvas-placeholder"
+              style={{ minHeight: "500px", backgroundColor: "#ffffff", border: "1px solid #e5e7eb" }}
+            >
               Waiting for drawer...
             </div>
           </Card>
